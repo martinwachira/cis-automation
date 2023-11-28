@@ -1,13 +1,15 @@
 package main
 
 import (
-    "encoding/xml"
-    "fmt"
-    "io/ioutil"
-    "net/http"
-    "strings"
-    "sync"
-    "time"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+	"time"
 )
 
 type Envelope struct {
@@ -42,7 +44,7 @@ func main() {
     }
     // gets the range of the CIs to create
     // for i := 31050000; i <= 31099999; i++ {
-		for i := 91100000; i <= 91100010; i++ {
+		for i := 31050000; i <= 31050013; i++ {
             // 91100000- 91199999
         msisdns <- i
     }
@@ -53,6 +55,8 @@ func main() {
 
 func worker(msisdns <-chan int, wg *sync.WaitGroup) {
     defer wg.Done()
+    //init logger
+    logger := log.New(os.Stdout, "", log.LstdFlags|log.Ltime)
     for msisdn := range msisdns {
         request := fmt.Sprintf(`
         <soapenv:Envelope
@@ -72,8 +76,8 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup) {
                         <cbs:BRID>101</cbs:BRID>
                     </cbs:OwnershipInfo>
                     <cbs:AccessSecurity>
-						<cbs:LoginSystemCode></cbs:LoginSystemCode>
-               			<cbs:Password>********</cbs:Password>
+                    <cbs:LoginSystemCode>********</cbs:LoginSystemCode>
+                    <cbs:Password>*********</cbs:Password>
                     </cbs:AccessSecurity>
                     <cbs:OperatorInfo>
                         <cbs:OperatorID>102</cbs:OperatorID>
@@ -179,22 +183,34 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup) {
         `, time.Now().Format("20060102150405"), msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
         // resp, err := http.Post("http://10.6.255.38:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
         resp, err := http.Post("http://10.6.98.43:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
+        
         if err != nil {
+            logger.Printf("Error sending CreateSubscriberRequest for MSISDN %d: %v\n", msisdn, err)
             fmt.Println(msisdn, "redo")
             continue
         }
         defer resp.Body.Close()
-        data, err := ioutil.ReadAll(resp.Body)
+
+        data, err := io.ReadAll(resp.Body)
         if err != nil {
+            logger.Printf("Error reading response body for MSISDN %d: %v\n", msisdn, err)
             fmt.Println(msisdn, "redo")
             continue
         }
+
         var e Envelope
         err = xml.Unmarshal(data, &e)
         if err != nil {
+            logger.Printf("Error unmarshaling XML response for MSISDN %d: %v\n", msisdn, err)
             fmt.Println(msisdn, "redo")
             continue
         }
-        fmt.Println(msisdn, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultDesc)
+
+        if e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode != "0000" {
+            logger.Printf("%d: ResultCode=%s, ResultDesc=%s\n", msisdn, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultDesc)
+        } else {
+            logger.Println("Successfully created CI:", msisdn)
+        }
+
     }
 }

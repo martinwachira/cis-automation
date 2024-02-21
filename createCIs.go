@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Envelope struct {
@@ -34,7 +36,29 @@ type Envelope struct {
     } `xml:"Body"`
 }
 
+func getCIResponse(c *gin.Context){
+    c.JSON(200, gin.H{
+        "message":  "response here",
+    })
+}
+
+func postCI(c *gin.Context){
+    body := c.Request.Body
+    value, err := io.ReadAll(body)
+    if err!= nil{
+        fmt.Println(err.Error())
+    }
+    c.JSON(200, gin.H{
+       "data": string(value),
+    })
+}
+
 func main() {
+    r :=gin.Default()
+    r.GET("/", getCIResponse)
+    r.POST("/", postCI)
+    r.Run()
+
     var wg sync.WaitGroup
     msisdns := make(chan int)   
 
@@ -43,7 +67,6 @@ func main() {
         go worker(msisdns, &wg)
     }
     // gets the range of the CIs to create
-    // for i := 31050000; i <= 31099999; i++ {
 		for i := 31050000; i <= 31050013; i++ {
             // 91100000- 91199999
         msisdns <- i
@@ -88,8 +111,8 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup) {
                         <cbs:BRID>101</cbs:BRID>
                     </cbs:OwnershipInfo>
                     <cbs:AccessSecurity>
-                    <cbs:LoginSystemCode>********</cbs:LoginSystemCode>
-                    <cbs:Password>*********</cbs:Password>
+                    <cbs:LoginSystemCode></cbs:LoginSystemCode>
+                    <cbs:Password></cbs:Password>
                     </cbs:AccessSecurity>
                     <cbs:OperatorInfo>
                         <cbs:OperatorID>102</cbs:OperatorID>

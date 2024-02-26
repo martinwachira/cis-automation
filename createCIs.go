@@ -36,48 +36,88 @@ type Envelope struct {
     } `xml:"Body"`
 }
 
-func getCIResponse(c *gin.Context){
-    c.JSON(200, gin.H{
-        "message":  "response here",
-    })
+type CreateCIRequest struct {
+    LoginSystemCode string `json:"login"`
+	Password string `json:"password"`
+    StartRange int `json:"startRange"`
+    EndRange int `json:"endRange"`
+    UrlEndpoint string `json:"endPoint"`
 }
 
-func postCI(c *gin.Context){
-    body := c.Request.Body
-    value, err := io.ReadAll(body)
-    if err!= nil{
-        fmt.Println(err.Error())
+func handleCreateCI(c *gin.Context){
+    // body := c.Request.Body
+    // value, err := io.ReadAll(body)
+    // if err!= nil{
+    //     fmt.Println(err.Error())
+    // }
+    // c.JSON(200, gin.H{
+    //    "data": string(value),
+    // })
+    var req CreateCIRequest
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+        return
     }
-    c.JSON(200, gin.H{
-       "data": string(value),
-    })
-}
 
-func main() {
-    r :=gin.Default()
-    r.GET("/", getCIResponse)
-    r.POST("/", postCI)
-    r.Run()
+    startRange := req.StartRange
+    endRange := req.EndRange
+
+    if startRange > endRange {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})
+        return
+    }
 
     var wg sync.WaitGroup
-    msisdns := make(chan int)   
+    msisdns := make(chan int)
 
     for i := 0; i < 100; i++ {
         wg.Add(1)
         go worker(msisdns, &wg)
     }
-    // gets the range of the CIs to create
-		for i := 31050000; i <= 31050013; i++ {
-            // 91100000- 91199999
+
+    for i := startRange; i <= endRange; i++ {
         msisdns <- i
     }
 
     close(msisdns)
     wg.Wait()
+
+    c.JSON(200, gin.H{
+        "message": "Successfully processed CI creation request",
+        "data": "data here"},    
+    )
+}
+
+func main() {
+    r :=gin.Default()
+    r.POST("/create-cis", handleCreateCI)
+    r.Run()
+
+    // var wg sync.WaitGroup
+    // msisdns := make(chan int)   
+
+    // for i := 0; i < 100; i++ {
+    //     wg.Add(1)
+    //     go worker(msisdns, &wg)
+    // }
+    // // gets the range of the CIs to create
+	// 	for i := 31050000; i <= 31050013; i++ {
+    //         // 91100000- 91199999
+    //     msisdns <- i
+    // }
+
+    // close(msisdns)
+    // wg.Wait()
 }
 
 func worker(msisdns <-chan int, wg *sync.WaitGroup) {
     defer wg.Done()
+
+    var rq CreateCIRequest
+    loginSystemCode := rq.LoginSystemCode
+    password := rq.Password
+    endPoint := rq.UrlEndpoint
+
 
     now := time.Now()
     timestamp := now.Format("20060102150405")  
@@ -110,9 +150,9 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup) {
                         <cbs:BEID>101</cbs:BEID>
                         <cbs:BRID>101</cbs:BRID>
                     </cbs:OwnershipInfo>
-                    <cbs:AccessSecurity>
-                    <cbs:LoginSystemCode></cbs:LoginSystemCode>
-                    <cbs:Password></cbs:Password>
+                    <cbs:AccessSecurity> 
+                    <cbs:LoginSystemCode>%s</cbs:LoginSystemCode>
+                    <cbs:Password>%s</cbs:Password>
                     </cbs:AccessSecurity>
                     <cbs:OperatorInfo>
                         <cbs:OperatorID>102</cbs:OperatorID>
@@ -215,9 +255,10 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup) {
             </bcs:CreateSubscriberRequestMsg>
             </soapenv:Body>
         </soapenv:Envelope>
-        `, time.Now().Format("20060102150405"), msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
+        `,time.Now().Format("20060102150405"), msisdn, loginSystemCode, password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
         // resp, err := http.Post("http://10.6.255.38:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
-        resp, err := http.Post("http://10.6.98.43:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
+        fmt.Println("Endpoint:", endPoint)
+        resp, err := http.Post(endPoint, "text/xml", strings.NewReader(request))
       
         if err != nil {
             logger.Printf("Error sending CreateSubscriberRequest for MSISDN %d: %v\n", msisdn, err)

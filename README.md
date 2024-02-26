@@ -9,3 +9,6 @@ The program then sends the request message to the Huawei network using the HTTP 
 The result code of the request
 The result description of the request
 The program then prints the MSISDN, the result code, and the result description of the request.
+
+![alt text](image-1.png)
+![alt text](image.png)

@@ -109,13 +109,17 @@ func handleCreateCI(c *gin.Context){
     close(msisdns)
     wg.Wait()
 
-    if createdCIs > 0 {
-        c.JSON(200, gin.H{
-            "message": fmt.Sprintf("Successfully created %d CIs", createdCIs),
-        })
-    } else {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create the CIs"})
-    }
+    c.JSON(200, gin.H{
+        "message": "Successfully processed CI creation request"},    
+    )
+
+    // if createdCIs != 0 {
+    //     c.JSON(200, gin.H{
+    //         "message": fmt.Sprintf("Successfully created %d CIs", createdCIs),
+    //     })
+    // } else {
+    //     c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create the CIs"})
+    // }
 }
 
 func main() {

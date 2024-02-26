@@ -51,6 +51,15 @@ type CreateCIRequest struct {
 }
 
 
+type WorkerContext struct {
+    Req         CreateCIRequest
+    User        string
+    Password    string
+    EndPoint    string
+    CreatedCIs *int // Pointer to the counter variable
+}
+
+
 func handleCreateCI(c *gin.Context){
     var req CreateCIRequest
     if err := c.BindJSON(&req); err != nil {
@@ -79,10 +88,17 @@ func handleCreateCI(c *gin.Context){
 
     var wg sync.WaitGroup
     msisdns := make(chan int)
+    createdCIs := 0
 
     for i := startRange; i < endRange; i++ {
         wg.Add(1)
-        go worker(msisdns, &wg, req, req.LoginSystemCode, req.Password, req.UrlEndpoint)
+        go worker(msisdns, &wg,WorkerContext{
+            Req:         req,
+            User:        req.LoginSystemCode,
+            Password:    req.Password,
+            EndPoint:    req.UrlEndpoint,
+            CreatedCIs: &createdCIs,
+        })
     }
 
     
@@ -93,10 +109,13 @@ func handleCreateCI(c *gin.Context){
     close(msisdns)
     wg.Wait()
 
-    c.JSON(200, gin.H{
-        "message": "Successfully processed CI creation request",
-        "data": "data here"},    
-    )
+    if createdCIs > 0 {
+        c.JSON(200, gin.H{
+            "message": fmt.Sprintf("Successfully created %d CIs", createdCIs),
+        })
+    } else {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create the CIs"})
+    }
 }
 
 func main() {
@@ -106,7 +125,7 @@ func main() {
     r.Run()
 }
 
-func worker(msisdns <-chan int, wg *sync.WaitGroup, req CreateCIRequest, user string, password string, endPoint string) {
+func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
     defer wg.Done()
 
     now := time.Now()
@@ -243,9 +262,9 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, req CreateCIRequest, user st
             </bcs:CreateSubscriberRequestMsg>
             </soapenv:Body>
         </soapenv:Envelope>
-        `,time.Now().Format("20060102150405"), msisdn, user, password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
+        `,time.Now().Format("20060102150405"), msisdn, ctx.User, ctx.Password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
         // resp, err := http.Post("http://10.6.255.38:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
-        resp, err := http.Post(endPoint, "text/xml", strings.NewReader(request))
+        resp, err := http.Post(ctx.EndPoint, "text/xml", strings.NewReader(request))
       
         if err != nil {
             logger.Printf("Error sending CreateSubscriberRequest for MSISDN %d: %v\n", msisdn, err)

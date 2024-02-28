@@ -73,14 +73,14 @@ func handleCreateCI(c *gin.Context){
         return
     }
 
-    user := req.LoginSystemCode
-    password := req.Password
+    // user := req.LoginSystemCode
+    // password := req.Password
     startRange := req.StartRange
     endRange := req.EndRange
     endPoint := req.UrlEndpoint
-    OfferingID := req.OfferingID
+    // OfferingID := req.OfferingID
 
-    fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint, "offeringid", OfferingID )
+    // fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint, "offeringid", OfferingID )
 
     if startRange > endRange {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})

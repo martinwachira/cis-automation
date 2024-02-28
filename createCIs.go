@@ -1,7 +1,7 @@
 /*
 author: martin wcr
 version: v1
-project: automation
+project: automation api
 */
 
 package main

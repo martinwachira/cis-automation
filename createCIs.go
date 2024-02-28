@@ -48,6 +48,8 @@ type CreateCIRequest struct {
     StartRange int `json:"startRange"`
     EndRange int `json:"endRange"`
     UrlEndpoint string `json:"endPoint"`
+    OfferingID int `json:"offeringId"`
+    
 }
 
 
@@ -56,6 +58,7 @@ type WorkerContext struct {
     User        string
     Password    string
     EndPoint    string
+    OfferingID int
     CreatedCIs *int // Pointer to the counter variable
 }
 
@@ -75,8 +78,9 @@ func handleCreateCI(c *gin.Context){
     startRange := req.StartRange
     endRange := req.EndRange
     endPoint := req.UrlEndpoint
+    OfferingID := req.OfferingID
 
-    fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint )
+    fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint, "offeringid", OfferingID )
 
     if startRange > endRange {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})
@@ -100,6 +104,7 @@ func handleCreateCI(c *gin.Context){
             User:        req.LoginSystemCode,
             Password:    req.Password,
             EndPoint:    req.UrlEndpoint,
+            OfferingID:  req.OfferingID,
             CreatedCIs: &createdCIs,
         })
     }
@@ -258,7 +263,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
                     </bcs:Subscriber>
                     <bcs:PrimaryOffering>
                         <bcc:OfferingKey>
-                            <bcc:OfferingID>28032865</bcc:OfferingID>
+                            <bcc:OfferingID>%d</bcc:OfferingID>
                         </bcc:OfferingKey>
                         <bcc:BundledFlag>S</bcc:BundledFlag>
                         <bcc:OfferingClass>I</bcc:OfferingClass>
@@ -270,7 +275,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
             </bcs:CreateSubscriberRequestMsg>
             </soapenv:Body>
         </soapenv:Envelope>
-        `,time.Now().Format("20060102150405"), msisdn, ctx.User, ctx.Password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn)
+        `,time.Now().Format("20060102150405"), msisdn, ctx.User, ctx.Password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, ctx.OfferingID)
         // resp, err := http.Post("http://10.6.255.38:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
         resp, err := http.Post(ctx.EndPoint, "text/xml", strings.NewReader(request))
       

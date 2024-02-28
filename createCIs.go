@@ -59,6 +59,9 @@ type WorkerContext struct {
     CreatedCIs *int // Pointer to the counter variable
 }
 
+func getCIs(c *gin.Context){
+    c.JSON(http.StatusAccepted, gin.H{"message": "message response"})
+}
 
 func handleCreateCI(c *gin.Context){
     var req CreateCIRequest
@@ -125,6 +128,7 @@ func handleCreateCI(c *gin.Context){
 func main() {
     r :=gin.Default()
     r.POST("/create-cis", handleCreateCI)
+    r.GET("/", getCIs)
 
     r.Run()
 }

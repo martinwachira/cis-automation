@@ -132,6 +132,18 @@ func handleCreateCI(c *gin.Context){
 
 func main() {
     r :=gin.Default()
+    r.Use(func(c *gin.Context){
+        c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+        c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+        c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, XCSRF-Token-Authorization")
+
+        //Handle preflight requests
+        if c.Request.Method=="OPTIONS" {
+            c.AbortWithStatus(204)
+            return
+        }
+        c.Next()
+    })
     r.POST("/create-cis", handleCreateCI)
     r.GET("/", getCIs)
 

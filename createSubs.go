@@ -118,7 +118,7 @@ func handleCreateCI(c *gin.Context){
     wg.Wait()
 
     c.JSON(200, gin.H{
-        "message": "Successfully processed CI creation request"},    
+        "message": "Successfully processed subscribers creation request (check logs for more info...)"},    
     )
 
     // if createdCIs != 0 {
@@ -155,7 +155,8 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
 
     now := time.Now()
     timestamp := now.Format("20060102150405")  
-    logFilename := timestamp + ".log"
+    // logFilename := timestamp + ".log"
+    logFilename := "logs/" + timestamp + ".log" // Include the directory path here
     f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_WRONLY, 0644)
     if err != nil {
         log.Fatalf("error opening log file: %v", err)

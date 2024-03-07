@@ -9,5 +9,5 @@ Go code that creates a new subscriber on a Huawei mobile network. The program fi
   - The result description of the request
   - The program then prints the MSISDN, the result code, and the result description of the request.
 
-![alt text](image-1.png)
+![alt text](image-3.png)
 ![alt text](image.png)

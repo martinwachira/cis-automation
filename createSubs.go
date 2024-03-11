@@ -95,17 +95,18 @@ func handleCreateCI(c *gin.Context){
 
     var wg sync.WaitGroup
     msisdns := make(chan int)
-    createdCIs := 0
-
+    // createdCIs := 0
+    
     for i := startRange; i < endRange; i++ {
         wg.Add(1)
+        // createdCIsForGoroutine := make([]string, 0) 
         go worker(msisdns, &wg,WorkerContext{
             Req:         req,
             User:        req.LoginSystemCode,
             Password:    req.Password,
             EndPoint:    req.UrlEndpoint,
             OfferingID:  req.OfferingID,
-            CreatedCIs: &createdCIs,
+            // CreatedCIs: &createdCIs,
         })
     }
 

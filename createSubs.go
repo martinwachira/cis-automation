@@ -49,7 +49,7 @@ type CreateCIRequest struct {
     EndRange int `json:"endRange"`
     UrlEndpoint string `json:"endPoint"`
     OfferingID int `json:"offeringId"`
-    
+    BillCycleType int `json:"BillCycleType"`    
 }
 
 
@@ -59,12 +59,10 @@ type WorkerContext struct {
     Password    string
     EndPoint    string
     OfferingID int
+    BillCycleType int
     CreatedCIs *int // Pointer to the counter variable
 }
 
-func getCIs(c *gin.Context){
-    c.JSON(http.StatusAccepted, gin.H{"message": "message response"})
-}
 
 func handleCreateCI(c *gin.Context){
     var req CreateCIRequest
@@ -78,9 +76,11 @@ func handleCreateCI(c *gin.Context){
     startRange := req.StartRange
     endRange := req.EndRange
     endPoint := req.UrlEndpoint
+    BillCycleType := req.BillCycleType
     // OfferingID := req.OfferingID
 
     // fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint, "offeringid", OfferingID )
+    fmt.Println("bill cycle", BillCycleType)
 
     if startRange > endRange {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})
@@ -106,6 +106,7 @@ func handleCreateCI(c *gin.Context){
             Password:    req.Password,
             EndPoint:    req.UrlEndpoint,
             OfferingID:  req.OfferingID,
+            BillCycleType: req.BillCycleType,
             // CreatedCIs: &createdCIs,
         })
     }
@@ -235,7 +236,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
                                 <bcc:Fax>%d</bcc:Fax>
                             </bcc:ContactInfo>
                             </bcc:AcctBasicInfo>
-                            <bcc:BillCycleType>1</bcc:BillCycleType>
+                            <bcc:BillCycleType>%d</bcc:BillCycleType>
                             <bcc:AcctType>1</bcc:AcctType>
                             <bcc:PaymentType>0</bcc:PaymentType>
                             <bcc:AcctClass>2</bcc:AcctClass>
@@ -293,7 +294,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
             </bcs:CreateSubscriberRequestMsg>
             </soapenv:Body>
         </soapenv:Envelope>
-        `,time.Now().Format("20060102150405"), msisdn, ctx.User, ctx.Password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, ctx.OfferingID)
+        `,time.Now().Format("20060102150405"), msisdn, ctx.User, ctx.Password, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, msisdn, ctx.BillCycleType, msisdn, msisdn, msisdn, msisdn, msisdn, ctx.OfferingID)
         // resp, err := http.Post("http://10.6.255.38:8080/services/BcServices?wsdl", "text/xml", strings.NewReader(request))
         resp, err := http.Post(ctx.EndPoint, "text/xml", strings.NewReader(request))
       

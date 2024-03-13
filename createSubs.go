@@ -122,13 +122,6 @@ func handleCreateCI(c *gin.Context){
         "message": "Successfully processed subscribers creation request (check logs for more info...)"},    
     )
 
-    // if createdCIs != 0 {
-    //     c.JSON(200, gin.H{
-    //         "message": fmt.Sprintf("Successfully created %d CIs", createdCIs),
-    //     })
-    // } else {
-    //     c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create the CIs"})
-    // }
 }
 
 func main() {
@@ -146,13 +139,17 @@ func main() {
         c.Next()
     })
     r.POST("/create-cis", handleCreateCI)
-    r.GET("/", getCIs)
-
     r.Run()
 }
 
 func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
     defer wg.Done()
+
+    defer func() {
+        if err := recover(); err != nil {
+            log.Printf("panic in worker: %v\n", err)
+        }
+    }()
 
     now := time.Now()
     timestamp := now.Format("20060102150405")  
@@ -162,8 +159,15 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
     if err != nil {
         log.Fatalf("error opening log file: %v", err)
     }
-    defer f.Close()
+    // defer f.Close()
 
+    defer func() { // Ensure log file is closed even if errors occur
+        if f != nil {
+            if err := f.Close(); err != nil {
+                log.Printf("error closing log file: %v\n", err)
+            }
+        }
+    }()
     logger := log.New(f, "", log.LstdFlags|log.Ltime)
    
     for msisdn := range msisdns {

@@ -186,7 +186,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
                     <cbs:BusinessCode>CreateSubscriber</cbs:BusinessCode>
                     <cbs:MessageSeq>%s-%d</cbs:MessageSeq>
                     <cbs:OwnershipInfo>
-                        <cbs:BEID>101</cbs:BEID>
+                        <cbs:BEID>1001</cbs:BEID>
                         <cbs:BRID>101</cbs:BRID>
                     </cbs:OwnershipInfo>
                     <cbs:AccessSecurity> 

@@ -44,7 +44,7 @@ type Envelope struct {
 
 type CreateCIRequest struct {
     LoginSystemCode string `json:"login"`
-	Password string `json:"password"`
+    Password string `json:"password"`
     StartRange int `json:"startRange"`
     EndRange int `json:"endRange"`
     UrlEndpoint string `json:"endPoint"`
@@ -97,7 +97,10 @@ func handleCreateCI(c *gin.Context){
     msisdns := make(chan int)
     // createdCIs := 0
     
-    for i := startRange; i < endRange; i++ {
+    // Limit number of workers here
+    numWorkers := 5  // you can tune this (depends on server capacity & endpoint limits)
+
+    for i := 0; i < numWorkers; i++ {
         wg.Add(1)
         // createdCIsForGoroutine := make([]string, 0) 
         go worker(msisdns, &wg,WorkerContext{
@@ -112,11 +115,14 @@ func handleCreateCI(c *gin.Context){
     }
 
     
-    for i := startRange; i <= endRange; i++ {
-        msisdns <- i
-    }
-
-    close(msisdns)
+    // send jobs
+    go func() {
+        for i := startRange; i <= endRange; i++ {
+            msisdns <- i
+        }
+        close(msisdns)
+    }()
+    
     wg.Wait()
 
     c.JSON(200, gin.H{
@@ -172,6 +178,8 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
     logger := log.New(f, "", log.LstdFlags|log.Ltime)
    
     for msisdn := range msisdns {
+        // Wait N milliseconds before firing each request
+        time.Sleep(1000 * time.Millisecond) // e.g. 1s delay
         request := fmt.Sprintf(`
         <soapenv:Envelope
             xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -219,16 +227,16 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
                             <bcc:AcctCode>%d</bcc:AcctCode>
                             <bcc:UserCustomerKey>%d</bcc:UserCustomerKey>
                             <bcc:AcctBasicInfo>
-                            <bcc:AcctName>AcctName</bcc:AcctName>
+                            <bcc:AcctName></bcc:AcctName>
                             <bcc:BillLang>2002</bcc:BillLang>
                             <bcc:DunningFlag>1</bcc:DunningFlag>
                             <bcc:LateFeeChargeable>N</bcc:LateFeeChargeable>
                             <bcc:RedlistFlag>0</bcc:RedlistFlag>
                             <bcc:ContactInfo>
                                 <bcc:Title>1</bcc:Title>
-                                <bcc:FirstName>SAF</bcc:FirstName>
-                                <bcc:MiddleName>PTMP</bcc:MiddleName>
-                                <bcc:LastName>CI</bcc:LastName>
+                                <bcc:FirstName></bcc:FirstName>
+                                <bcc:MiddleName></bcc:MiddleName>
+                                <bcc:LastName></bcc:LastName>
                                 <bcc:OfficePhone>%d</bcc:OfficePhone>
                                 <bcc:HomePhone>%d</bcc:HomePhone>
                                 <bcc:MobilePhone>%d</bcc:MobilePhone>
@@ -270,7 +278,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
                             <bcc:PrimaryFlag>1</bcc:PrimaryFlag>
                             </bcc:SubIdentity>
                             <bcc:Brand>1</bcc:Brand>
-                            <bcc:SubClass>2</bcc:SubClass>
+                            <bcc:SubClass>1</bcc:SubClass>
                             <bcc:NetworkType>1</bcc:NetworkType>
                             <bcc:Status>2</bcc:Status>
                         </bcs:SubscriberInfo>

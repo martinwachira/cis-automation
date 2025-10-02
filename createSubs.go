@@ -1,6 +1,6 @@
 /*
 author: martin wcr
-version: v1
+version: v2
 project: automation api
 */
 
@@ -21,173 +21,158 @@ import (
 )
 
 type Envelope struct {
-    XMLName xml.Name `xml:"Envelope"`
-    Text    string   `xml:",chardata"`
-    Soapenv string   `xml:"soapenv,attr"`
-    Header  string   `xml:"Header"`
-    Body    struct {
-        Text string `xml:",chardata"`
-        CreateSubscriberResultMsg struct {
-            Text         string `xml:",chardata"`
-            Bcs          string `xml:"bcs,attr"`
-            Cbs          string `xml:"cbs,attr"`
-            ResultHeader struct {
-                Text            string `xml:",chardata"`
-                Version         string `xml:"Version"`
-                ResultCode      string `xml:"ResultCode"`
-                MsgLanguageCode string `xml:"MsgLanguageCode"`
-                ResultDesc      string `xml:"ResultDesc"`
-            } `xml:"ResultHeader"`
-        } `xml:"CreateSubscriberResultMsg"`
-    } `xml:"Body"`
+	XMLName xml.Name `xml:"Envelope"`
+	Body    struct {
+		CreateSubscriberResultMsg struct {
+			ResultHeader struct {
+				ResultCode string `xml:"ResultCode"`
+				ResultDesc string `xml:"ResultDesc"`
+			} `xml:"ResultHeader"`
+		} `xml:"CreateSubscriberResultMsg"`
+	} `xml:"Body"`
 }
 
 type CreateCIRequest struct {
-    LoginSystemCode string `json:"login"`
-    Password string `json:"password"`
-    StartRange int `json:"startRange"`
-    EndRange int `json:"endRange"`
-    UrlEndpoint string `json:"endPoint"`
-    OfferingID int `json:"offeringId"`
-    BillCycleType int `json:"BillCycleType"` 
-    NumWorkers int `json:"numWorkers"`   
+	LoginSystemCode string `json:"login"`
+	Password        string `json:"password"`
+	StartRange      int    `json:"startRange"`
+	EndRange        int    `json:"endRange"`
+	UrlEndpoint     string `json:"endPoint"`
+	OfferingID      int    `json:"offeringId"`
+	BillCycleType   int    `json:"BillCycleType"`
+	NumWorkers      int    `json:"numWorkers"`
 }
-
 
 type WorkerContext struct {
-    Req         CreateCIRequest
-    User        string
-    Password    string
-    EndPoint    string
-    OfferingID int
-    BillCycleType int
-    CreatedCIs *int // Pointer to the counter variable
-    Logger *log.Logger
+	Req          CreateCIRequest
+	User         string
+	Password     string
+	EndPoint     string
+	OfferingID   int
+	BillCycleType int
+	Logger       *log.Logger
 }
 
+func handleCreateCI(c *gin.Context) {
+	var req CreateCIRequest
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
 
-func handleCreateCI(c *gin.Context){
-    var req CreateCIRequest
-    if err := c.BindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-        return
-    }
+	if req.StartRange > req.EndRange {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})
+		return
+	}
+	if req.UrlEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "check the end-point"})
+		return
+	}
 
-    // user := req.LoginSystemCode
-    // password := req.Password
-    startRange := req.StartRange
-    endRange := req.EndRange
-    endPoint := req.UrlEndpoint
-    BillCycleType := req.BillCycleType
-    // OfferingID := req.OfferingID
+	// Prepare log file
+	logFilename := fmt.Sprintf("createCI-%s.log", time.Now().Format("20060102-150405"))
+	logPath := fmt.Sprintf("logs/%s", logFilename)
 
-    // fmt.Println("user:", user, "password:", password, "start:", startRange, "end:", endRange, "endpoint:", endPoint, "offeringid", OfferingID )
-    fmt.Println("bill cycle", BillCycleType)
+	if err := os.MkdirAll("logs", 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to prepare log directory"})
+		return
+	}
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open log file"})
+		return
+	}
+	defer f.Close()
 
-    if startRange > endRange {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Start range cannot be greater than end range"})
-        return
-    }
+	logger := log.New(f, "", log.LstdFlags|log.Ltime)
 
-    if endPoint == "" {
-        c.JSON(http.StatusBadRequest, gin.H{
-            "error": "check the end-point"},    
-        )
-    }
+	// Worker pool setup
+	var wg sync.WaitGroup
+	msisdns := make(chan int)
+	numWorkers := req.NumWorkers
+	if numWorkers <= 0 {
+		numWorkers = 50
+	}
 
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker(msisdns, &wg, WorkerContext{
+			Req:          req,
+			User:         req.LoginSystemCode,
+			Password:     req.Password,
+			EndPoint:     req.UrlEndpoint,
+			OfferingID:   req.OfferingID,
+			BillCycleType: req.BillCycleType,
+			Logger:       logger,
+		})
+	}
 
-    //opens one log for this request
-    logFilename := fmt.Sprintf("createCI-%s.log", time.Now().Format("20060102-150405"))
-    logPath := fmt.Sprintf("logs/%s", logFilename)
+	go func() {
+		for i := req.StartRange; i <= req.EndRange; i++ {
+			msisdns <- i
+		}
+		close(msisdns)
+	}()
 
-    f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open log file"})
-        return
-    }
-    defer f.Close()
+	wg.Wait()
 
-    logger := log.New(f, "", log.LstdFlags|log.Ltime)
-
-    var wg sync.WaitGroup
-    msisdns := make(chan int)
-    // createdCIs := 0
-    
-    // Limit number of workers here
-    //numWorkers := 60  // you can tune this (depends on server capacity & endpoint limits)
-    numWorkers := req.NumWorkers
-    if numWorkers <= 0 {
-        numWorkers = 50 // default value
-    }
-
-    for i := 0; i < numWorkers; i++ {
-        wg.Add(1)
-        // createdCIsForGoroutine := make([]string, 0) 
-        go worker(msisdns, &wg,WorkerContext{
-            Req:         req,
-            User:        req.LoginSystemCode,
-            Password:    req.Password,
-            EndPoint:    req.UrlEndpoint,
-            OfferingID:  req.OfferingID,
-            BillCycleType: req.BillCycleType,
-            Logger: logger,
-            // CreatedCIs: &createdCIs,
-        })
-    }
-
-    // send jobs
-    go func() {
-        for i := startRange; i <= endRange; i++ {
-            msisdns <- i
-        }
-        close(msisdns)
-    }()
-    
-    wg.Wait()
-
-    c.JSON(200, gin.H{
-        "message": "Request processed successfully",
-        "logFile": logFilename,    
-    })
+	c.JSON(200, gin.H{
+		"message":  "Request processed successfully",
+		"logFile":  logFilename,
+		"logUrl":   fmt.Sprintf("/logs/download?file=%s", logFilename), // download link
+	})
 }
 
-
+// Text log view
 func handleLogs(c *gin.Context) {
-    filename := c.Query("file")
-    if filename == "" {
-        c.JSON(400, gin.H{"error": "log file not specified"})
-        return
-    }
+	filename := c.Query("file")
+	if filename == "" {
+		c.JSON(400, gin.H{"error": "log file not specified"})
+		return
+	}
 
-    path := fmt.Sprintf("logs/%s", filename)
-    data, err := os.ReadFile(path)
-    if err != nil {
-        c.JSON(404, gin.H{"error": "log file not found"})
-        return
-    }
+	path := fmt.Sprintf("logs/%s", filename)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "log file not found"})
+		return
+	}
 
-    c.Data(200, "text/plain; charset=utf-8", data)
+	c.Data(200, "text/plain; charset=utf-8", data)
 }
 
+// Log file download
+func handleLogDownload(c *gin.Context) {
+	filename := c.Query("file")
+	if filename == "" {
+		c.JSON(400, gin.H{"error": "log file not specified"})
+		return
+	}
+
+	path := fmt.Sprintf("logs/%s", filename)
+	c.FileAttachment(path, filename) // sends as downloadable file
+}
 
 func main() {
-    r :=gin.Default()
-    r.Use(func(c *gin.Context){
-        c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-        c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-        c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, XCSRF-Token-Authorization")
+	r := gin.Default()
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, XCSRF-Token-Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
-        //Handle preflight requests
-        if c.Request.Method=="OPTIONS" {
-            c.AbortWithStatus(204)
-            return
-        }
-        c.Next()
-    })
-    r.POST("/create-cis", handleCreateCI)
-    r.GET("/logs", handleLogs)
-    r.Run()
+	r.POST("/create-cis", handleCreateCI)
+	r.GET("/logs", handleLogs)             // raw logs
+	r.GET("/logs/download", handleLogDownload) // file download
+
+	r.Run()
 }
+
 
 func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
     defer wg.Done()

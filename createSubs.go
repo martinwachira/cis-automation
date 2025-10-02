@@ -98,7 +98,7 @@ func handleCreateCI(c *gin.Context){
     // createdCIs := 0
     
     // Limit number of workers here
-    numWorkers := 5  // you can tune this (depends on server capacity & endpoint limits)
+    numWorkers := 60  // you can tune this (depends on server capacity & endpoint limits)
 
     for i := 0; i < numWorkers; i++ {
         wg.Add(1)
@@ -179,7 +179,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
    
     for msisdn := range msisdns {
         // Wait N milliseconds before firing each request
-        time.Sleep(1000 * time.Millisecond) // e.g. 1s delay
+        time.Sleep(500 * time.Millisecond) // e.g. 0.5s delay
         request := fmt.Sprintf(`
         <soapenv:Envelope
             xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"

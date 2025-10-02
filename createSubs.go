@@ -95,9 +95,12 @@ func handleCreateCI(c *gin.Context){
         )
     }
 
+
     //opens one log for this request
-    logFilename := fmt.Sprintf("logs/createCI-%s.log", time.Now().Format("20060102-150405"))
-    f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+    logFilename := fmt.Sprintf("createCI-%s.log", time.Now().Format("20060102-150405"))
+    logPath := fmt.Sprintf("logs/%s", logFilename)
+
+    f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open log file"})
         return
@@ -143,10 +146,29 @@ func handleCreateCI(c *gin.Context){
     wg.Wait()
 
     c.JSON(200, gin.H{
-        "message": fmt.Sprintf("Request processed. Check logs at %s", logFilename)},    
-    )
-
+        "message": "Request processed successfully",
+        "logFile": logFilename,    
+    })
 }
+
+
+func handleLogs(c *gin.Context) {
+    filename := c.Query("file")
+    if filename == "" {
+        c.JSON(400, gin.H{"error": "log file not specified"})
+        return
+    }
+
+    path := fmt.Sprintf("logs/%s", filename)
+    data, err := os.ReadFile(path)
+    if err != nil {
+        c.JSON(404, gin.H{"error": "log file not found"})
+        return
+    }
+
+    c.Data(200, "text/plain; charset=utf-8", data)
+}
+
 
 func main() {
     r :=gin.Default()
@@ -163,6 +185,7 @@ func main() {
         c.Next()
     })
     r.POST("/create-cis", handleCreateCI)
+    r.GET("/logs", handleLogs)
     r.Run()
 }
 

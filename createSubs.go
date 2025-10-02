@@ -61,6 +61,7 @@ type WorkerContext struct {
     OfferingID int
     BillCycleType int
     CreatedCIs *int // Pointer to the counter variable
+    Logger *log.Logger
 }
 
 
@@ -93,6 +94,19 @@ func handleCreateCI(c *gin.Context){
         )
     }
 
+    //opens one log for this request
+    logFilename := fmt.Sprintf("logs/createCI-%s.log", time.Now().Format("20060102-150405"))
+    f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open log file"})
+        return
+    }
+    defer f.Close()
+
+    logger := log.New(f, "", log.LstdFlags|log.Ltime)
+
+    
+
     var wg sync.WaitGroup
     msisdns := make(chan int)
     // createdCIs := 0
@@ -110,6 +124,7 @@ func handleCreateCI(c *gin.Context){
             EndPoint:    req.UrlEndpoint,
             OfferingID:  req.OfferingID,
             BillCycleType: req.BillCycleType,
+            Logger: logger,
             // CreatedCIs: &createdCIs,
         })
     }
@@ -126,7 +141,7 @@ func handleCreateCI(c *gin.Context){
     wg.Wait()
 
     c.JSON(200, gin.H{
-        "message": "Successfully processed subscribers creation request (check logs for more info...)"},    
+        "message": fmt.Sprintf("Request processed. Check logs at %s", logFilename)},    
     )
 
 }
@@ -158,7 +173,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
         }
     }()
 
-    now := time.Now()
+   /* now := time.Now()
     timestamp := now.Format("20060102150405")  
     // logFilename := timestamp + ".log"
     logFilename := "logs/" + timestamp + ".log" // Include the directory path here
@@ -176,10 +191,11 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
         }
     }()
     logger := log.New(f, "", log.LstdFlags|log.Ltime)
-   
+   */
     for msisdn := range msisdns {
         // Wait N milliseconds before firing each request
-        time.Sleep(500 * time.Millisecond) // e.g. 0.5s delay
+        // throttle
+        time.Sleep(500 * time.Millisecond)
         request := fmt.Sprintf(`
         <soapenv:Envelope
             xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
@@ -307,33 +323,36 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
         resp, err := http.Post(ctx.EndPoint, "text/xml", strings.NewReader(request))
       
         if err != nil {
-            logger.Printf("Error sending CreateSubscriberRequest for MSISDN %d: %v\n", msisdn, err)
-            logger.Println(msisdn, "redo")
+           // logger.Printf("Error sending CreateSubscriberRequest for MSISDN %d: %v\n", msisdn, err)
+            ctx.Logger.Printf("Error sending request for creating MSISDN %d: %v\n", msisdn, err)
+            //logger.Println(msisdn, "redo")
             continue
         }
         defer resp.Body.Close()
         
         data, err := io.ReadAll(resp.Body)
         if err != nil {
-            logger.Printf("Error reading response body for MSISDN %d: %v\n", msisdn, err)
-            logger.Println(msisdn, "redo")
+            ctx.Logger.Printf("Error reading response body for MSISDN %d: %v\n", msisdn, err)
+            //logger.Println(msisdn, "redo")
             continue
         }
         
         var e Envelope
         err = xml.Unmarshal(data, &e)
         if err != nil {
-            logger.Printf("Error unmarshaling XML response for MSISDN %d: %v\n", msisdn, err)
-            logger.Println(msisdn, "redo")
+            ctx.Logger.Printf("Error unmarshaling XML response for MSISDN %d: %v\n", msisdn, err)
+            //logger.Println(msisdn, "redo")
             continue
         }
         
         if e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode != "0000" {
-            logger.Println(msisdn, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultDesc)
+            ctx.Logger.Println(msisdn, 
+            e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode, 
+            e.Body.CreateSubscriberResultMsg.ResultHeader.ResultDesc)
             fmt.Printf("%d: ResultCode=%s, ResultDesc=%s\n", msisdn, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultCode, e.Body.CreateSubscriberResultMsg.ResultHeader.ResultDesc)
 
         } else {
-            logger.Println("Successfully created CI:", msisdn)
+            ctx.Logger.Println("Successfully created CI:", msisdn)
         }
     }
 }

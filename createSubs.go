@@ -49,7 +49,8 @@ type CreateCIRequest struct {
     EndRange int `json:"endRange"`
     UrlEndpoint string `json:"endPoint"`
     OfferingID int `json:"offeringId"`
-    BillCycleType int `json:"BillCycleType"`    
+    BillCycleType int `json:"BillCycleType"` 
+    NumWorkers int `json:"numWorkers"`   
 }
 
 
@@ -105,14 +106,16 @@ func handleCreateCI(c *gin.Context){
 
     logger := log.New(f, "", log.LstdFlags|log.Ltime)
 
-    
-
     var wg sync.WaitGroup
     msisdns := make(chan int)
     // createdCIs := 0
     
     // Limit number of workers here
-    numWorkers := 60  // you can tune this (depends on server capacity & endpoint limits)
+    //numWorkers := 60  // you can tune this (depends on server capacity & endpoint limits)
+    numWorkers := req.NumWorkers
+    if numWorkers <= 0 {
+        numWorkers = 50 // default value
+    }
 
     for i := 0; i < numWorkers; i++ {
         wg.Add(1)
@@ -129,7 +132,6 @@ func handleCreateCI(c *gin.Context){
         })
     }
 
-    
     // send jobs
     go func() {
         for i := startRange; i <= endRange; i++ {
@@ -328,7 +330,7 @@ func worker(msisdns <-chan int, wg *sync.WaitGroup, ctx WorkerContext) {
             //logger.Println(msisdn, "redo")
             continue
         }
-        defer resp.Body.Close()
+        //defer resp.Body.Close()
         
         data, err := io.ReadAll(resp.Body)
         if err != nil {
